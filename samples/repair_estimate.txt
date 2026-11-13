@@ -1,0 +1,9 @@
+Repair Estimate
+Workshop: Speedy Fix Garage
+Name: Ali Raza
+Policy No: POL-100000
+Date: 2026-01-10
+Labour 3000.00
+Parts 9000.00
+Tax 1000.00
+Total: 13000.00

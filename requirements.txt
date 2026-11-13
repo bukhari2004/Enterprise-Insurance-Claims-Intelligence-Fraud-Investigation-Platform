@@ -1,0 +1,23 @@
+# ---- Core (needed to run the API + dashboard) ----
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+pydantic>=2.7
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+networkx>=3.2
+opencv-python-headless>=4.9
+pillow>=10.3
+pytesseract>=0.3.10        # needs the Tesseract binary installed on your machine (see README)
+python-dotenv>=1.0
+
+# ---- Optional production integrations (code falls back gracefully if missing) ----
+# psycopg2-binary>=2.9     # PostgreSQL
+# redis>=5.0               # Redis cache + event stream
+# neo4j>=5.20              # Neo4j graph sync
+# ultralytics>=8.3         # YOLO (YOLO11) damage detection
+# paddleocr>=2.8 paddlepaddle>=2.6   # PaddleOCR
+# langgraph>=0.2           # multi-agent copilot graph
+# anthropic>=0.40          # optional LLM wording for the copilot
+# faiss-cpu>=1.8           # vector index for similar-claim search at scale

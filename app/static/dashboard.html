@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claims Intelligence & Fraud Investigation Platform</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--ink:#1b2430;--mute:#6b7788;--line:#e3e8ef;--brand:#2457d6;--low:#2e9e5b;--med:#e0a100;--high:#e56b1f;--crit:#d62839}
+@media(prefers-color-scheme:dark){:root{--bg:#10151d;--card:#18202b;--ink:#e8edf4;--mute:#93a0b3;--line:#273140;--brand:#6c93ff}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;gap:12px;align-items:center;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font-size:17px;margin:0;flex:1;min-width:220px}
+input,select,button,textarea{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+button{cursor:pointer;background:var(--brand);color:#fff;border:0}button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.bad{background:var(--crit)}button.good{background:var(--low)}
+main{padding:18px 20px;display:grid;gap:16px;max-width:1500px;margin:auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi b{display:block;font-size:24px;margin-top:2px}.kpi span{color:var(--mute);font-size:12px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+h2{font-size:14px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
+table{width:100%;border-collapse:collapse}th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}
+tr.row{cursor:pointer}tr.row:hover{background:var(--bg)}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:600;color:#fff}
+.LOW{background:var(--low)}.MEDIUM{background:var(--med)}.HIGH{background:var(--high)}.CRITICAL{background:var(--crit)}
+.sev-critical{background:var(--crit)}.sev-high{background:var(--high)}.sev-medium{background:var(--med)}.sev-low{background:var(--low)}
+canvas{width:100%;height:190px;display:block}
+.alert{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}.alert span.msg{flex:1}
+.bar{height:8px;border-radius:4px;background:var(--brand)}.mute{color:var(--mute)}
+#detail{display:none}.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.chat{height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg);white-space:pre-wrap}
+.msg-u{color:var(--brand);font-weight:600;margin-top:6px}.chips button{margin:2px;padding:3px 9px;font-size:12px}
+form.claim{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.ind{margin:6px 0}.ind small{color:var(--mute)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛡️ Claims Intelligence & Fraud Investigation Platform <span class="mute" id="health"></span></h1>
+  <input id="apikey" placeholder="X-API-Key (if auth enabled)" size="22">
+  <button class="ghost" onclick="refresh()">Refresh</button>
+  <a href="/docs" target="_blank"><button class="ghost">API docs</button></a>
+</header>
+<main>
+  <section class="kpis" id="kpis"></section>
+  <section class="grid2">
+    <div class="card"><h2>Fraud risk distribution</h2><canvas id="cRisk"></canvas></div>
+    <div class="card"><h2>Claim status</h2><canvas id="cStatus"></canvas></div>
+    <div class="card"><h2>Claim volume (last 30 days)</h2><canvas id="cVol"></canvas></div>
+    <div class="card"><h2>AI recommendations</h2><canvas id="cRec"></canvas></div>
+  </section>
+  <section class="grid2">
+    <div class="card" style="grid-column:1/-1"><h2>Investigation queue (priority order)</h2>
+      <div style="overflow:auto"><table id="queue"></table></div></div>
+    <div class="card"><h2>Alert center</h2><div id="alerts"></div></div>
+    <div class="card"><h2>Suspected fraud rings</h2><div id="rings"></div></div>
+  </section>
+
+  <section class="card" id="detail"></section>
+
+  <section class="grid2">
+    <div class="card"><h2>AI Claims Copilot <span class="mute" id="ctx"></span></h2>
+      <div class="chat" id="chat">Ask about a claim - select one from the queue first, or mention an id like CLM-000012.</div>
+      <div class="chips" id="chips"></div>
+      <div style="display:flex;gap:6px;margin-top:6px"><input id="q" style="flex:1" placeholder="Ask the copilot..." onkeydown="if(event.key==='Enter')ask()"><button onclick="ask()">Ask</button></div>
+    </div>
+    <div class="card"><h2>Submit a new claim</h2>
+      <form class="claim" onsubmit="return submitClaim(event)">
+        <select name="claim_type"><option>vehicle</option><option>health</option><option>property</option><option>travel</option><option>marine</option><option>life</option></select>
+        <input name="policy_no" placeholder="Policy no (POL-100000)" required>
+        <input name="customer_id" placeholder="Customer id (C0001)" required>
+        <input name="customer_name" placeholder="Customer name" required>
+        <input name="claim_amount" type="number" step="0.01" placeholder="Amount" required>
+        <input name="incident_date" type="date" required>
+        <input name="provider_name" placeholder="Hospital / workshop">
+        <input name="bank_account" placeholder="Bank account">
+        <input name="national_id" placeholder="National ID">
+        <textarea name="description" placeholder="Description" style="grid-column:1/-1"></textarea>
+        <button style="grid-column:1/-1">Submit &amp; run AI pipeline</button>
+      </form><div id="submitres" class="mute" style="margin-top:8px"></div>
+    </div>
+  </section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>n==null?'-':Number(n).toLocaleString(undefined,{maximumFractionDigits:0});
+let CUR=null, CURRENCY='';
+$('apikey').value=localStorage.getItem('apikey')||'';
+$('apikey').onchange=()=>{localStorage.setItem('apikey',$('apikey').value);refresh()};
+async function api(path,opt={}){
+  opt.headers=Object.assign({'X-API-Key':$('apikey').value},opt.headers||{});
+  const r=await fetch(path,opt); if(!r.ok){throw new Error(path+' -> '+r.status+' '+(await r.text()).slice(0,200))}
+  return r.json();
+}
+const pill=l=>`<span class="pill ${esc(l)}">${esc(l||'-')}</span>`;
+const COLORS={LOW:'#2e9e5b',MEDIUM:'#e0a100',HIGH:'#e56b1f',CRITICAL:'#d62839'};
+
+function bars(id,obj,colorFn){
+  const c=$(id),dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;c.width=w*dpr;c.height=h*dpr;
+  const g=c.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,w,h);
+  const ent=Object.entries(obj);if(!ent.length)return;const max=Math.max(...ent.map(e=>e[1]))||1,bw=w/ent.length;
+  const ink=getComputedStyle(document.body).color;g.font='11px system-ui';g.textAlign='center';
+  ent.forEach(([k,v],i)=>{const bh=(h-42)*v/max;g.fillStyle=colorFn?colorFn(k):'#2457d6';
+    g.fillRect(i*bw+bw*.15,h-24-bh,bw*.7,bh);g.fillStyle=ink;g.fillText(v,i*bw+bw/2,h-28-bh);
+    g.fillText(k.replace(/_/g,' ').slice(0,13),i*bw+bw/2,h-8)});
+}
+function line(id,obj){
+  const c=$(id),dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;c.width=w*dpr;c.height=h*dpr;
+  const g=c.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,w,h);
+  const ent=Object.entries(obj);if(ent.length<2)return;const max=Math.max(...ent.map(e=>e[1]))||1;
+  g.strokeStyle='#2457d6';g.lineWidth=2;g.beginPath();
+  ent.forEach(([k,v],i)=>{const x=10+i*(w-20)/(ent.length-1),y=h-24-(h-40)*v/max;i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke();
+  g.fillStyle=getComputedStyle(document.body).color;g.font='11px system-ui';
+  g.fillText(ent[0][0].slice(5),4,h-6);g.textAlign='right';g.fillText(ent[ent.length-1][0].slice(5),w-4,h-6);g.fillText('max '+max,w-4,12);
+}
+async function refresh(){
+  try{
+    const [h,d,al,rg]=await Promise.all([api('/api/health'),api('/api/dashboard'),api('/api/alerts'),api('/api/graph/rings')]);
+    CURRENCY=d.currency;
+    $('health').textContent=`· ${h.db} · OCR ${h.ocr} · ${h.yolo?'YOLO':'OpenCV vision'} · copilot ${h.copilot_engine}`;
+    const k=[['Total claims',fmt(d.total_claims)],['Open alerts',fmt(d.open_alerts)],['Avg settlement (days)',d.avg_settlement_days??'-'],
+      ['Auto-approved',Math.round(d.auto_approved_share*100)+'%'],['Open exposure',fmt(d.financial_exposure)+' '+d.currency],
+      ['Fraud-adjusted exposure',fmt(d.fraud_adjusted_exposure)+' '+d.currency],['Suspected rings',d.rings],['Prevented loss',fmt(d.prevented_loss)+' '+d.currency]];
+    $('kpis').innerHTML=k.map(([a,b])=>`<div class="card kpi"><span>${a}</span><b>${esc(b)}</b></div>`).join('');
+    const order=['LOW','MEDIUM','HIGH','CRITICAL'];const risk={};order.forEach(o=>{if(d.by_risk[o])risk[o]=d.by_risk[o]});
+    bars('cRisk',risk,k=>COLORS[k]);bars('cStatus',d.by_status);bars('cRec',d.by_recommendation);line('cVol',d.volume_by_day);
+    $('queue').innerHTML='<tr><th>Claim</th><th>Type</th><th>Customer</th><th>Amount</th><th>Risk</th><th>Score</th><th>AI recommendation</th><th>Status</th><th>Investigator</th></tr>'+
+      d.investigation_queue.map(c=>`<tr class="row" onclick="openClaim('${esc(c.claim_no)}')"><td>${esc(c.claim_no)}</td><td>${esc(c.claim_type)}</td><td>${esc(c.customer_name)}</td><td>${fmt(c.claim_amount)}</td><td>${pill(c.risk_level)}</td><td>${Math.round((c.fraud_score||0)*100)}%</td><td>${esc((c.recommendation||'').replace(/_/g,' '))}</td><td>${esc(c.status)}</td><td>${esc(c.investigator||'-')}</td></tr>`).join('');
+    $('alerts').innerHTML=al.slice(0,12).map(a=>`<div class="alert"><span class="pill sev-${esc(a.severity)}">${esc(a.severity)}</span><span class="msg"><b>${esc(a.alert_type.replace(/_/g,' '))}</b> - ${esc(a.message)}</span><button class="ghost" onclick="ack('${a.alert_id}')">Ack</button></div>`).join('')||'<span class="mute">No open alerts</span>';
+    $('rings').innerHTML=rg.map(r=>`<div class="ind"><b>${esc(r.ring_id)}</b> ${pill(r.ring_score>=.75?'CRITICAL':r.ring_score>=.5?'HIGH':'MEDIUM')} <small>${r.size} customers · ${r.claims} claims · exposure ${fmt(r.exposure)}</small><div class="bar" style="width:${r.ring_score*100}%"></div><small>Shared: ${esc(r.shared_entities.map(e=>e.type+' '+e.value).slice(0,3).join(', ')||'provider concentration')} · Providers: ${esc(r.top_providers.map(p=>p.name+' ('+p.claims+')').join(', '))}</small></div>`).join('')||'<span class="mute">No rings detected</span>';
+  }catch(e){$('kpis').innerHTML='<div class="card" style="grid-column:1/-1">⚠️ '+esc(e.message)+'<br><span class="mute">If authentication is enabled, enter an API key above (e.g. dev-admin-key).</span></div>'}
+}
+async function ack(id){await api('/api/alerts/'+id+'/ack',{method:'POST'});refresh()}
+
+async function openClaim(ref){
+  const c=await api('/api/claims/'+ref);CUR=c;$('ctx').textContent='· '+c.claim_no;
+  const ex=c.explanation||{},rec=ex.recommendation||{},st=ex.settlement,v=(c.images[0]||{}).assessment;
+  const inds=(c.indicators||[]).filter(i=>i.points>0);const mx=Math.max(1,...inds.map(i=>i.points));
+  $('detail').style.display='block';
+  $('detail').innerHTML=`<h2>Claim ${esc(c.claim_no)} - ${esc(c.claim_type)} ${pill(c.risk_level)} <span class="mute">${esc(c.status)}</span></h2>
+  <div class="cols">
+   <div><b>${esc(c.customer_name)}</b> (${esc(c.customer_id)}) · policy ${esc(c.policy_no)}<br>Amount <b>${fmt(c.claim_amount)} ${CURRENCY}</b> · incident ${esc(c.incident_date)} · filed ${esc(c.filed_date)}<br>
+     Provider: ${esc(c.provider_name||'-')} ${c.doctor?'· '+esc(c.doctor):''}<br><span class="mute">${esc(c.description)}</span>
+     <p><b>AI summary</b><br>${esc(ex.summary||'Not scored')}</p>
+     <p><b>Recommendation:</b> ${esc((rec.action||'').replace(/_/g,' '))} <span class="mute">(priority ${rec.priority??'-'})</span><br>${esc((rec.reasons||[]).join(' '))}</p>
+     ${st?`<p><b>Indicative settlement:</b> ${fmt(st.indicative_amount)} ${esc(st.currency)} <span class="mute">- ${esc(st.note)}</span></p>`:''}
+     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="good" onclick="decide('APPROVED')">Approve</button><button class="bad" onclick="decide('REJECTED')">Reject</button><button class="ghost" onclick="showGraph()">Show network</button><button class="ghost" onclick="rescore()">Re-score</button></div>
+   </div>
+   <div><b>Fraud score ${Math.round((c.fraud_score||0)*100)}%</b> <span class="mute">rules ${Math.round((ex.model?.rule_score||0)*100)}% · anomaly ${ex.model?.anomaly_score==null?'n/a':Math.round(ex.model.anomaly_score*100)+'%'}</span>
+     ${inds.map(i=>`<div class="ind"><b>${esc(i.label)}</b> <small>+${i.points} pts</small><div class="bar" style="width:${100*i.points/mx}%"></div><small>${esc(i.detail)}</small></div>`).join('')||'<p class="mute">No fraud indicators</p>'}
+   </div>
+   <div><b>Documents (${c.documents.length})</b>${c.documents.map(d=>`<div class="ind">${esc(d.doc_type)} · total ${fmt(d.extracted?.total_amount)} ${(d.issues||[]).map(i=>`<br><small>⚠ ${esc(i.message)}</small>`).join('')}</div>`).join('')||'<p class="mute">None uploaded</p>'}
+     <b>Vision</b> ${v?`<div class="ind">${esc(v.damage_type)} · ${esc(v.severity_label)} (${Math.round(v.severity*100)}%) · est. cost ${fmt(v.estimated_cost?.expected)} <small>[${fmt(v.estimated_cost?.low)}-${fmt(v.estimated_cost?.high)}] via ${esc(v.method)}</small></div>`:'<p class="mute">No images</p>'}
+     <form onsubmit="return upload(event,'documents')"><input type="file" name="file" required> <select name="doc_type"><option value="">auto-detect</option><option>medical_report</option><option>police_fir</option><option>invoice</option><option>repair_estimate</option><option>identity</option><option>receipt</option></select> <button>Upload document</button></form>
+     <form onsubmit="return upload(event,'images')" style="margin-top:6px"><input type="file" name="file" accept="image/*" required> <button>Upload damage photo</button></form>
+   </div>
+   <div><canvas id="gcanvas" style="height:260px;display:none;border:1px solid var(--line);border-radius:8px"></canvas></div>
+  </div>`;
+  $('detail').scrollIntoView({behavior:'smooth'});
+}
+async function decide(d){await api('/api/claims/'+CUR.claim_no+'/decision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decision:d,note:'via dashboard'})});openClaim(CUR.claim_no);refresh()}
+async function rescore(){await api('/api/claims/'+CUR.claim_no+'/rescore',{method:'POST'});openClaim(CUR.claim_no);refresh()}
+async function upload(e,kind){e.preventDefault();const fd=new FormData(e.target);if(kind==='images')fd.delete('doc_type');
+  await api('/api/claims/'+CUR.claim_no+'/'+kind,{method:'POST',body:fd});openClaim(CUR.claim_no);refresh();return false}
+
+async function showGraph(){
+  const g=await api('/api/graph/claim/'+CUR.claim_no);const c=$('gcanvas');c.style.display='block';
+  const dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;c.width=w*dpr;c.height=h*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);
+  const N=g.nodes.map((n,i)=>({...n,x:w/2+Math.cos(i)*80*Math.random(),y:h/2+Math.sin(i)*80*Math.random(),vx:0,vy:0}));
+  const idx=Object.fromEntries(N.map((n,i)=>[n.id,i]));const E=g.edges.filter(e=>e.source in idx&&e.target in idx);
+  for(let it=0;it<250;it++){
+    for(const a of N)for(const b of N){if(a===b)continue;let dx=a.x-b.x,dy=a.y-b.y,d=Math.hypot(dx,dy)||1;const f=900/(d*d);a.vx+=f*dx/d;a.vy+=f*dy/d}
+    for(const e of E){const a=N[idx[e.source]],b=N[idx[e.target]];const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,f=(d-50)*.02;a.vx+=f*dx/d;a.vy+=f*dy/d;b.vx-=f*dx/d;b.vy-=f*dy/d}
+    for(const n of N){n.vx+=(w/2-n.x)*.003;n.vy+=(h/2-n.y)*.003;n.x=Math.max(14,Math.min(w-14,n.x+n.vx*.5));n.y=Math.max(14,Math.min(h-14,n.y+n.vy*.5));n.vx*=.6;n.vy*=.6}}
+  const col={claim:'#2457d6',customer:'#2e9e5b',provider:'#e56b1f',bank:'#d62839',phone:'#8a63d2',address:'#8a63d2',identity:'#d62839',vehicle:'#6b7788',doctor:'#e0a100',policy:'#6b7788',investigator:'#999'};
+  x.clearRect(0,0,w,h);x.strokeStyle='#9aa5b5';E.forEach(e=>{const a=N[idx[e.source]],b=N[idx[e.target]];x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke()});
+  x.font='10px system-ui';N.forEach(n=>{x.fillStyle=col[n.kind]||'#999';x.beginPath();x.arc(n.x,n.y,n.kind==='claim'&&n.label===CUR.claim_no?9:6,0,7);x.fill();
+    if(n.kind!=='claim'||n.label===CUR.claim_no){x.fillStyle=getComputedStyle(document.body).color;x.fillText(String(n.label).slice(0,18),n.x+8,n.y+3)}});
+}
+
+const CHIPS=['Why was this claim flagged?','Show fraud indicators','Estimate settlement amount','Compare with similar claims','Is it part of a fraud ring?','Generate claim summary'];
+$('chips').innerHTML=CHIPS.map(t=>`<button class="ghost" onclick="$('q').value='${t}';ask()">${t}</button>`).join('');
+async function ask(){
+  const q=$('q').value.trim();if(!q)return;$('q').value='';const ch=$('chat');
+  ch.innerHTML+=`\n<div class="msg-u">You: ${esc(q)}</div>`;
+  try{const r=await api('/api/copilot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,claim_ref:CUR?CUR.claim_no:null})});
+    ch.innerHTML+=`<div>${esc(r.answer).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}</div>`}catch(e){ch.innerHTML+=`<div>⚠ ${esc(e.message)}</div>`}
+  ch.scrollTop=ch.scrollHeight;
+}
+async function submitClaim(e){e.preventDefault();const o=Object.fromEntries(new FormData(e.target));o.claim_amount=parseFloat(o.claim_amount);
+  try{const c=await api('/api/claims',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});
+    $('submitres').textContent=`Created ${c.claim_no}: risk ${c.risk_level} (${Math.round(c.fraud_score*100)}%) → ${c.recommendation}`;refresh();openClaim(c.claim_no)}
+  catch(err){$('submitres').textContent=err.message}return false}
+refresh();
+</script>
+</body>
+</html>
